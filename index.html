@@ -1,0 +1,100 @@
+<title>Experiment Log</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column. Form on top, one table below; summary line between. Tool, not a landing page. */
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --fg: #15191f; --muted: #5d6673; --line: #dde1e7;
+  --accent: #2446a8; --accent-fg: #ffffff;
+  --win: #14703f; --win-bg: #e1f3e8; --loss: #a3281f; --loss-bg: #fbe5e2; --flat: #4f5864; --flat-bg: #e8ebef;
+  --warn: #8a5300; --warn-bg: #fdf0d3; --warn-line: #e3b45c;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1318; --surface: #171c23; --fg: #e8ebf0; --muted: #98a2b0; --line: #2a313b;
+  --accent: #8aa4ff; --accent-fg: #0f1318;
+  --win: #6fd29a; --win-bg: #12301f; --loss: #ff9a90; --loss-bg: #3a1a17; --flat: #aab3c0; --flat-bg: #252c36;
+  --warn: #f2c26b; --warn-bg: #33270f; --warn-line: #7a5a1c; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1318; --surface: #171c23; --fg: #e8ebf0; --muted: #98a2b0; --line: #2a313b;
+  --accent: #8aa4ff; --accent-fg: #0f1318;
+  --win: #6fd29a; --win-bg: #12301f; --loss: #ff9a90; --loss-bg: #3a1a17; --flat: #aab3c0; --flat-bg: #252c36;
+  --warn: #f2c26b; --warn-bg: #33270f; --warn-line: #7a5a1c; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 var(--font); margin: 0;
+  padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+h1 { font-size: 22px; line-height: 1.2; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { color: var(--muted); margin: 4px 0 0; max-width: 65ch; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.summary { color: var(--muted); display: flex; gap: 8px 16px; flex-wrap: wrap; align-items: center; }
+.summary b { color: var(--fg); font-weight: 600; }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; min-width: 760px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.name { font-weight: 500; min-width: 190px; }
+td.date, td.id { white-space: nowrap; }
+.notes { color: var(--muted); font-weight: 400; margin-top: 2px; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.badge.win { color: var(--win); background: var(--win-bg); }
+.badge.loss { color: var(--loss); background: var(--loss-bg); }
+.badge.inconclusive { color: var(--flat); background: var(--flat-bg); }
+</style>
+
+<main>
+  <header>
+    <h1>Experiment Log</h1>
+    <p class="sub">Everything the growth team has run, newest first. Check here before you propose a test.</p>
+  </header>
+  <div class="summary" id="summary" aria-live="polite"></div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>ID</th><th>Experiment</th><th>Target</th><th>Metric</th><th>Started</th><th>Owner</th><th>Outcome</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+// Seed: the 8 experiments supplied with the ticket (stands in for the experiments source).
+const SEED = [
+  { id: "EXP-0041", name: "Pricing page headline", target: "/pricing", metric: "signup_rate", started: "2025-11-04", owner: "dana", outcome: "win", notes: "Clearer value prop lifted signups 7%. Shipped." },
+  { id: "EXP-0042", name: "Annual toggle default", target: "/pricing", metric: "arpu", started: "2025-11-18", owner: "dana", outcome: "inconclusive", notes: "Underpowered. Never re-run." },
+  { id: "EXP-0043", name: "Remove nav on checkout", target: "/checkout", metric: "completion_rate", started: "2025-12-02", owner: "sam", outcome: "loss", notes: "Completion fell 3%. Reverted." },
+  { id: "EXP-0044", name: "Social proof above fold", target: "/", metric: "signup_rate", started: "2025-12-15", owner: "priya", outcome: "win", notes: "Logos beat testimonials." },
+  { id: "EXP-0045", name: "Onboarding checklist", target: "/welcome", metric: "activation", started: "2026-01-08", owner: "sam", outcome: "win", notes: "Activation +11%." },
+  { id: "EXP-0046", name: "Pricing page headline", target: "/pricing", metric: "signup_rate", started: "2026-03-02", owner: "lee", outcome: "inconclusive", notes: "Re-ran EXP-0041 by accident. Nobody checked." },
+  { id: "EXP-0047", name: "Trial length 14 to 30 days", target: "/signup", metric: "paid_conversion", started: "2026-03-19", owner: "dana", outcome: "loss", notes: "Longer trial delayed conversion." },
+  { id: "EXP-0048", name: "Empty state illustration", target: "/dashboard", metric: "activation", started: "2026-04-07", owner: "priya", outcome: "inconclusive", notes: "No measurable effect." }
+];
+let experiments = SEED.slice();
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const LABEL = { win: "Win", loss: "Loss", inconclusive: "Inconclusive" };
+const fmtDate = (iso) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+// Newest first; same date -> later insertion first.
+function sorted(list) {
+  return list.map((e, i) => ({ e, i })).sort((a, b) => b.e.started.localeCompare(a.e.started) || b.i - a.i).map((x) => x.e);
+}
+
+function render() {
+  $("summary").innerHTML = `<span><b>${experiments.length}</b> experiments logged</span>`;
+  $("rows").innerHTML = sorted(experiments).map((e) => `
+    <tr>
+      <td class="id mono">${esc(e.id)}</td>
+      <td class="name">${esc(e.name)}<div class="notes">${esc(e.notes)}</div></td>
+      <td class="mono">${esc(e.target)}</td>
+      <td class="mono">${esc(e.metric)}</td>
+      <td class="date">${fmtDate(e.started)}</td>
+      <td>${esc(e.owner)}</td>
+      <td><span class="badge ${esc(e.outcome)}">${LABEL[e.outcome] || esc(e.outcome)}</span></td>
+    </tr>`).join("");
+}
+render();
+</script>
