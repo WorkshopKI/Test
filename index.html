@@ -31,6 +31,21 @@ h1 { font-size: 22px; line-height: 1.2; margin: 0; letter-spacing: -0.01em; text
 .mono { font-family: var(--mono); font-size: 12.5px; }
 .summary { color: var(--muted); display: flex; gap: 8px 16px; flex-wrap: wrap; align-items: center; }
 .summary b { color: var(--fg); font-weight: 600; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.card h2 { font-size: 14px; margin: 0 0 12px; }
+form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: start; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field.wide { grid-column: 1 / -1; }
+label { font-size: 12px; font-weight: 500; color: var(--muted); }
+input, select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100%; min-width: 0; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input[aria-invalid="true"] { border-color: var(--loss); }
+.err { color: var(--loss); font-size: 12px; min-height: 0; }
+button { font: inherit; font-weight: 500; border: 1px solid transparent; border-radius: 6px; padding: 8px 14px; cursor: pointer; background: var(--accent); color: var(--accent-fg); }
+.hint { grid-column: 1 / -1; padding: 8px 10px; border-radius: 6px; font-size: 13px; background: var(--flat-bg); color: var(--flat); }
+.hint.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
+.hint ul { margin: 4px 0 0; padding: 0; list-style: none; }
+.actions { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 table { border-collapse: collapse; width: 100%; min-width: 760px; }
 th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -54,6 +69,20 @@ tr.flagged td { background: color-mix(in srgb, var(--warn-bg) 35%, var(--surface
     <h1>Experiment Log</h1>
     <p class="sub">Everything the growth team has run, newest first. Check here before you propose a test.</p>
   </header>
+  <section class="card" aria-labelledby="addh">
+    <h2 id="addh">Log an experiment</h2>
+    <form id="form" novalidate>
+      <div class="field"><label for="f-name">Name</label><input id="f-name" autocomplete="off" placeholder="Pricing page headline"><span class="err" id="e-name"></span></div>
+      <div class="field"><label for="f-target">Target page</label><input id="f-target" class="mono" autocomplete="off" placeholder="/pricing"><span class="err" id="e-target"></span></div>
+      <div class="field"><label for="f-metric">Metric</label><input id="f-metric" class="mono" autocomplete="off" placeholder="signup_rate"><span class="err" id="e-metric"></span></div>
+      <div class="field"><label for="f-started">Started</label><input id="f-started" type="date"><span class="err" id="e-started"></span></div>
+      <div class="field"><label for="f-owner">Owner</label><input id="f-owner" autocomplete="off" placeholder="lee"></div>
+      <div class="field"><label for="f-outcome">Outcome</label><select id="f-outcome"><option value="inconclusive">Inconclusive</option><option value="win">Win</option><option value="loss">Loss</option></select></div>
+      <div class="field wide"><label for="f-notes">How it went (one line)</label><input id="f-notes" autocomplete="off" placeholder="What happened, what you did about it"></div>
+      <div class="hint" id="hint" aria-live="polite">Enter a target page and metric to check whether it has been run before.</div>
+      <div class="actions"><button type="submit">Add to log</button><span class="err" id="e-form"></span></div>
+    </form>
+  </section>
   <div class="summary" id="summary" aria-live="polite"></div>
   <div class="tablewrap">
     <table>
@@ -75,7 +104,13 @@ const SEED = [
   { id: "EXP-0047", name: "Trial length 14 to 30 days", target: "/signup", metric: "paid_conversion", started: "2026-03-19", owner: "dana", outcome: "loss", notes: "Longer trial delayed conversion." },
   { id: "EXP-0048", name: "Empty state illustration", target: "/dashboard", metric: "activation", started: "2026-04-07", owner: "priya", outcome: "inconclusive", notes: "No measurable effect." }
 ];
-let experiments = SEED.slice();
+const STORE = "experiment-log.v1";
+function load() {
+  try { const raw = localStorage.getItem(STORE); if (raw) { const v = JSON.parse(raw); if (Array.isArray(v)) return v; } } catch (_) {}
+  return SEED.slice();
+}
+function save() { try { localStorage.setItem(STORE, JSON.stringify(experiments)); } catch (_) {} }
+let experiments = load();
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -119,5 +154,58 @@ function render() {
       <td><span class="badge ${esc(e.outcome)}">${LABEL[e.outcome] || esc(e.outcome)}</span></td>
     </tr>`; }).join("");
 }
+
+// ---- Form -------------------------------------------------------------------
+const F = (k) => $("f-" + k);
+const nextId = () => "EXP-" + String(Math.max(0, ...experiments.map((e) => parseInt(String(e.id).replace(/\D/g, ""), 10) || 0)) + 1).padStart(4, "0");
+const validDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v + "T00:00:00Z")) && new Date(v + "T00:00:00Z").toISOString().slice(0, 10) === v;
+
+function candidate() {
+  return { name: F("name").value.trim(), target: F("target").value, metric: F("metric").value, started: F("started").value,
+    owner: F("owner").value.trim(), outcome: F("outcome").value, notes: F("notes").value.trim() };
+}
+
+function updateHint() {
+  const c = candidate(), hint = $("hint");
+  if (!c.target.trim() || !c.metric.trim()) { hint.className = "hint"; hint.textContent = "Enter a target page and metric to check whether it has been run before."; return; }
+  const m = repeatsOf({ ...c, started: validDate(c.started) ? c.started : "9999-12-31" }, experiments);
+  if (!m.length) { hint.className = "hint"; hint.textContent = "No earlier experiment with this page and metric. Not a repeat."; return; }
+  hint.className = "hint warn";
+  hint.innerHTML = `<strong>Repeat.</strong> Same page and metric as:<ul>${m.map((o) => `<li>${repeatLine(o)}</li>`).join("")}</ul>You can still add it. Check whether the earlier result still stands.`;
+}
+
+function validate(c) {
+  const errs = {};
+  if (!c.name) errs.name = "Give the experiment a name.";
+  if (!c.target.trim()) errs.target = "Enter the page, like /pricing.";
+  else if (!c.target.trim().startsWith("/")) errs.target = "Start the page with /, like /pricing.";
+  if (!c.metric.trim()) errs.metric = "Enter the metric, like signup_rate.";
+  if (!c.started) errs.started = "Pick the day it started.";
+  else if (!validDate(c.started)) errs.started = "Use a real date.";
+  return errs;
+}
+
+function showErrors(errs) {
+  for (const k of ["name", "target", "metric", "started"]) {
+    $("e-" + k).textContent = errs[k] || "";
+    F(k).setAttribute("aria-invalid", errs[k] ? "true" : "false");
+  }
+}
+
+$("form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const c = candidate(), errs = validate(c);
+  showErrors(errs);
+  if (Object.keys(errs).length) { const first = ["name", "target", "metric", "started"].find((k) => errs[k]); F(first).focus(); return; }
+  experiments.push({ id: nextId(), name: c.name, target: c.target.trim(), metric: c.metric.trim(), started: c.started,
+    owner: c.owner || "unknown", outcome: c.outcome, notes: c.notes || "No notes." });
+  save();
+  ["name", "target", "metric", "started", "owner", "notes"].forEach((k) => (F(k).value = ""));
+  F("outcome").value = "inconclusive";
+  updateHint(); render();
+  F("name").focus();
+});
+["name", "target", "metric", "started", "owner", "outcome", "notes"].forEach((k) => F(k).addEventListener("input", () => { updateHint(); }));
+
 render();
 </script>
