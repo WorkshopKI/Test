@@ -39,6 +39,10 @@ tr:last-child td { border-bottom: 0; }
 td.name { font-weight: 500; min-width: 190px; }
 td.date, td.id { white-space: nowrap; }
 .notes { color: var(--muted); font-weight: 400; margin-top: 2px; }
+.repeat { margin-top: 6px; padding: 6px 8px; border: 1px solid var(--warn-line); background: var(--warn-bg); color: var(--warn); border-radius: 6px; font-weight: 400; font-size: 12.5px; }
+.repeat strong { font-weight: 600; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; margin-right: 6px; }
+.repeat ul { margin: 2px 0 0; padding: 0; list-style: none; }
+tr.flagged td { background: color-mix(in srgb, var(--warn-bg) 35%, var(--surface)); }
 .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
 .badge.win { color: var(--win); background: var(--win-bg); }
 .badge.loss { color: var(--loss); background: var(--loss-bg); }
@@ -78,23 +82,42 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const LABEL = { win: "Win", loss: "Loss", inconclusive: "Inconclusive" };
 const fmtDate = (iso) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
+// THE repeat rule (fixed, no judgement): same target page AND same metric.
+// Case-insensitive, trimmed, trailing slash on the page ignored. Nothing else counts.
+const normTarget = (t) => { t = String(t).trim().toLowerCase(); return t.length > 1 ? (t.replace(/\/+$/, "") || "/") : t; };
+const normMetric = (m) => String(m).trim().toLowerCase();
+const keyOf = (e) => normTarget(e.target) + "\u0000" + normMetric(e.metric);
+
+// Earlier experiments matching `row`, newest first. "Earlier" = strictly earlier start date,
+// or same date and logged earlier. A row not in the list yet (the form preview) counts as logged last.
+function repeatsOf(row, rows) {
+  let at = rows.indexOf(row); if (at < 0) at = rows.length;
+  const k = keyOf(row);
+  return sorted(rows.filter((o, i) => o !== row && keyOf(o) === k && (o.started < row.started || (o.started === row.started && i < at))));
+}
+const repeatLine = (o) => `${esc(o.id)} · ${esc(o.name)} · ${fmtDate(o.started)} · ${LABEL[o.outcome] || esc(o.outcome)}`;
+
 // Newest first; same date -> later insertion first.
 function sorted(list) {
   return list.map((e, i) => ({ e, i })).sort((a, b) => b.e.started.localeCompare(a.e.started) || b.i - a.i).map((x) => x.e);
 }
 
 function render() {
-  $("summary").innerHTML = `<span><b>${experiments.length}</b> experiments logged</span>`;
-  $("rows").innerHTML = sorted(experiments).map((e) => `
-    <tr>
+  const flags = new Map(experiments.map((e) => [e, repeatsOf(e, experiments)]));
+  const nFlag = [...flags.values()].filter((m) => m.length).length;
+  $("summary").innerHTML = `<span><b>${experiments.length}</b> experiments logged</span>` +
+    `<span><b>${nFlag}</b> flagged as repeats</span>`;
+  $("rows").innerHTML = sorted(experiments).map((e) => { const m = flags.get(e); return `
+    <tr class="${m.length ? "flagged" : ""}">
       <td class="id mono">${esc(e.id)}</td>
-      <td class="name">${esc(e.name)}<div class="notes">${esc(e.notes)}</div></td>
+      <td class="name">${esc(e.name)}<div class="notes">${esc(e.notes)}</div>${m.length ? `
+        <div class="repeat"><strong>Repeat</strong>same page and metric as an earlier test:<ul>${m.map((o) => `<li>${repeatLine(o)}</li>`).join("")}</ul></div>` : ""}</td>
       <td class="mono">${esc(e.target)}</td>
       <td class="mono">${esc(e.metric)}</td>
       <td class="date">${fmtDate(e.started)}</td>
       <td>${esc(e.owner)}</td>
       <td><span class="badge ${esc(e.outcome)}">${LABEL[e.outcome] || esc(e.outcome)}</span></td>
-    </tr>`).join("");
+    </tr>`; }).join("");
 }
 render();
 </script>
