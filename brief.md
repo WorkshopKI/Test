@@ -1,8 +1,5 @@
 # Brief: Experiment Log
 
-Source: `ticket.md` (Dana, Head of Growth). Dana is unavailable; every call below is mine,
-made on purpose, so the result can be checked against it.
-
 ## In one sentence
 A page listing every growth experiment we have run, newest first, that marks a row when it repeats an earlier one.
 
@@ -20,9 +17,8 @@ A growth PM, in the ten minutes before proposing a new test, to check it hasn't 
 
 ## Explicitly not doing
 1. No accounts, permissions, or record of who added a row beyond a free-text owner field.
-2. No importing from an external system, no charts, no stats or readouts (outcome is a label + one line).
-3. No editing rows, no search/filter/pagination, no multi-user sync (storage is per-browser).
-4. No fuzzy/AI similarity ("looks like a repeat" is a fixed, explainable rule, not a judgement).
+2. No external import, charts, stats or readouts (outcome is a label + one line).
+3. No editing, search/filter, or multi-user sync (storage is per-browser).
 
 ## First demoable slice
 The table rendering the 8 real experiments Dana's team supplied, newest first.
