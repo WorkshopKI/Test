@@ -58,6 +58,12 @@ td.date, td.id { white-space: nowrap; }
 .repeat strong { font-weight: 600; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; margin-right: 6px; }
 .repeat ul { margin: 2px 0 0; padding: 0; list-style: none; }
 tr.flagged td { background: color-mix(in srgb, var(--warn-bg) 35%, var(--surface)); }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); }
+.empty strong { display: block; color: var(--fg); font-size: 15px; margin-bottom: 4px; }
+.linkbtn { background: none; color: var(--muted); border: 1px solid var(--line); padding: 3px 9px; font-size: 12px; }
+.linkbtn.danger { color: var(--loss); border-color: var(--loss); }
+.linkbtn.quiet { margin-left: auto; }
+td.act { white-space: nowrap; text-align: right; }
 .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
 .badge.win { color: var(--win); background: var(--win-bg); }
 .badge.loss { color: var(--loss); background: var(--loss-bg); }
@@ -86,9 +92,10 @@ tr.flagged td { background: color-mix(in srgb, var(--warn-bg) 35%, var(--surface
   <div class="summary" id="summary" aria-live="polite"></div>
   <div class="tablewrap">
     <table>
-      <thead><tr><th>ID</th><th>Experiment</th><th>Target</th><th>Metric</th><th>Started</th><th>Owner</th><th>Outcome</th></tr></thead>
+      <thead><tr><th>ID</th><th>Experiment</th><th>Target</th><th>Metric</th><th>Started</th><th>Owner</th><th>Outcome</th><th><span class="sr" style="position:absolute;left:-9999px">Actions</span></th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
+    <div class="empty" id="empty" hidden><strong>No experiments logged yet.</strong>This does not mean none were run. Ask the team before assuming a test is new.</div>
   </div>
 </main>
 
@@ -137,11 +144,13 @@ function sorted(list) {
   return list.map((e, i) => ({ e, i })).sort((a, b) => b.e.started.localeCompare(a.e.started) || b.i - a.i).map((x) => x.e);
 }
 
+let armed = null; // id awaiting delete confirmation (confirm() is unavailable in the viewer)
 function render() {
   const flags = new Map(experiments.map((e) => [e, repeatsOf(e, experiments)]));
   const nFlag = [...flags.values()].filter((m) => m.length).length;
   $("summary").innerHTML = `<span><b>${experiments.length}</b> experiments logged</span>` +
     `<span><b>${nFlag}</b> flagged as repeats</span>`;
+  $("empty").hidden = experiments.length > 0;
   $("rows").innerHTML = sorted(experiments).map((e) => { const m = flags.get(e); return `
     <tr class="${m.length ? "flagged" : ""}">
       <td class="id mono">${esc(e.id)}</td>
@@ -152,8 +161,19 @@ function render() {
       <td class="date">${fmtDate(e.started)}</td>
       <td>${esc(e.owner)}</td>
       <td><span class="badge ${esc(e.outcome)}">${LABEL[e.outcome] || esc(e.outcome)}</span></td>
+      <td class="act">${armed === e.id
+        ? `<button type="button" class="linkbtn danger" data-del="${esc(e.id)}">Confirm delete</button> <button type="button" class="linkbtn" data-cancel>Cancel</button>`
+        : `<button type="button" class="linkbtn" data-ask="${esc(e.id)}" aria-label="Delete ${esc(e.id)}">Delete</button>`}</td>
     </tr>`; }).join("");
 }
+
+$("rows").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button"); if (!b) return;
+  if (b.dataset.ask) armed = b.dataset.ask;
+  else if (b.hasAttribute("data-cancel")) armed = null;
+  else if (b.dataset.del) { experiments = experiments.filter((e) => e.id !== b.dataset.del); armed = null; save(); updateHint(); }
+  render();
+});
 
 // ---- Form -------------------------------------------------------------------
 const F = (k) => $("f-" + k);
