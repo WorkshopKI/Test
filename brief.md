@@ -3,9 +3,6 @@
 ## In one sentence
 A page listing every growth experiment we have run, newest first, that marks a row when it repeats an earlier one.
 
-*The sentence has a conjunction I kept on purpose: the flag is the only reason Dana asked.
-If time runs short, cut polish, not the flag (see slices).*
-
 ## The one screen
 One table: ID, name, target page, metric, date started, owner, outcome label + one-line note.
 A "Repeat" marker on any row that matches an earlier row; it names the earlier experiment(s).
